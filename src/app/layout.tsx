@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   title: "OFFGRID",
   description: "Offline file transfer. No internet.",
   icons: {
-    icon: '../../public/logo.png',
+    icon: '/icon.png',
   },
 };
 
