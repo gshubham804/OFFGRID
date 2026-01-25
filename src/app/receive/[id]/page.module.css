@@ -1,0 +1,103 @@
+.container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main {
+    flex: 1;
+    padding: 1.5rem;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.loading {
+    text-align: center;
+    color: var(--text-muted);
+    margin-top: 4rem;
+}
+
+.error,
+.success {
+    text-align: center;
+    color: var(--error);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.success {
+    color: var(--success);
+}
+
+.status {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.fileList {
+    margin-bottom: 2rem;
+}
+
+.fileItem {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+
+.fileItem:last-child {
+    border-bottom: none;
+}
+
+.fileIcon {
+    background: #F5F5F5;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.fileInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.fileName {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 0.25rem;
+}
+
+.fileSize {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.footer {
+    margin-top: auto;
+}
+
+.progressContainer {
+    width: 100%;
+}
+
+.meta {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--deep-orange);
+    font-weight: 500;
+    font-feature-settings: "tnum";
+    font-variant-numeric: tabular-nums;
+}
