@@ -12,7 +12,7 @@ export default function Home() {
       <main className={styles.main}>
         <div className={styles.hero}>
           <div className={styles.logoPlaceholder}>
-            <Image src="/logo.png" alt="OFFGRID Logo" width={80} height={80} priority />
+            <Image src="/icon.png" alt="OFFGRID Logo" width={80} height={80} priority />
           </div>
           <h1 className={styles.title}>OFFGRID</h1>
 
