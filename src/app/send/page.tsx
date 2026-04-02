@@ -4,7 +4,8 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
-import { FileUp, Loader2, ArrowLeft } from 'lucide-react';
+import { FileUp, FolderUp, Loader2, ArrowLeft, X } from 'lucide-react';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import QRCode from 'qrcode';
 import Link from 'next/link';
 import styles from './page.module.css';
@@ -25,12 +26,20 @@ export default function SenderPage() {
     const [loading, setLoading] = useState(false);
     const [qrUrl, setQrUrl] = useState('');
     const [processingFile, setProcessingFile] = useState<{ index: number, name: string } | null>(null);
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const folderInputRef = useRef<HTMLInputElement>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            setFiles(Array.from(e.target.files));
+        if (e.target.files && e.target.files.length > 0) {
+            setFiles(prev => [...prev, ...Array.from(e.target.files as FileList)]);
         }
+        // clear value to allow selecting same files again if needed
+        e.target.value = '';
+    };
+
+    const removeFile = (index: number) => {
+        setFiles(files.filter((_, i) => i !== index));
     };
 
     const handleStart = async () => {
@@ -56,7 +65,7 @@ export default function SenderPage() {
                     // Send metadata first
                     conn.send({
                         type: 'META',
-                        files: files.map(f => ({ name: f.name, size: f.size, type: f.type }))
+                        files: files.map(f => ({ name: f.webkitRelativePath || f.name, size: f.size, type: f.type }))
                     });
                 });
 
@@ -65,12 +74,13 @@ export default function SenderPage() {
                         // Send each file natively as Blobs
                         for (let i = 0; i < files.length; i++) {
                             const file = files[i];
-                            setProcessingFile({ index: i + 1, name: file.name });
+                            const displayName = file.webkitRelativePath || file.name;
+                            setProcessingFile({ index: i + 1, name: displayName });
                             
                             conn.send({
                                 type: 'FILE',
                                 file: file,
-                                name: file.name,
+                                name: displayName,
                                 index: i + 1,
                                 total: files.length
                             });
@@ -104,29 +114,54 @@ export default function SenderPage() {
                     <div className={styles.step}>
                         <div className={styles.headerRow}>
                             <Link href="/"><ArrowLeft className={styles.backIcon} /></Link>
-                            <h2>Send Files</h2>
+                            <h2>Send Items</h2>
                         </div>
 
-                        <Card className={styles.uploadCard} onClick={() => fileInputRef.current?.click()}>
-                            <div className={styles.uploadPlaceholder}>
-                                <div className={styles.iconCircle}>
-                                    <FileUp size={32} color="var(--primary-orange)" />
-                                </div>
-                                <h3>Select files to send</h3>
-                                <p>Works on any device with a browser</p>
-                            </div>
-                            <input
-                                type="file"
-                                multiple
-                                ref={fileInputRef}
-                                onChange={handleFileChange}
-                                hidden
-                            />
-                        </Card>
+                        <div className={styles.uploadRow}>
+                            <Card className={styles.uploadCard} onClick={() => fileInputRef.current?.click()}>
+                                <FileUp size={28} color="var(--primary-orange)" />
+                                <h3>Add Files</h3>
+                                <input
+                                    type="file"
+                                    multiple
+                                    ref={fileInputRef}
+                                    onChange={handleFileChange}
+                                    hidden
+                                />
+                            </Card>
+                            
+                            <Card className={styles.uploadCard} onClick={() => folderInputRef.current?.click()}>
+                                <FolderUp size={28} color="var(--primary-orange)" />
+                                <h3>Add Folder</h3>
+                                {/* @ts-ignore */}
+                                <input
+                                    type="file"
+                                    multiple
+                                    webkitdirectory="true"
+                                    directory="true"
+                                    ref={folderInputRef}
+                                    onChange={handleFileChange}
+                                    hidden
+                                />
+                            </Card>
+                        </div>
 
                         {files.length > 0 && (
                             <div className={styles.fileList}>
-                                <p className={styles.fileCount}>{files.length} files selected ({formatBytes(files.reduce((a, b) => a + b.size, 0))})</p>
+                                <p className={styles.fileCount}>{files.length} items selected ({formatBytes(files.reduce((a, b) => a + b.size, 0))})</p>
+                                
+                                <div className={styles.selectedFilesList}>
+                                    {files.map((file, idx) => {
+                                        const displayName = file.webkitRelativePath || file.name;
+                                        return (
+                                            <div key={idx} className={styles.selectedFileItem}>
+                                                <span className={styles.selectedFileName} title={displayName}>{displayName}</span>
+                                                <button className={styles.removeBtn} onClick={() => removeFile(idx)}><X size={16} /></button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
                                 <Button fullWidth onClick={handleStart} disabled={loading}>
                                     {loading ? <Loader2 className="animate-spin" /> : 'Start Server'}
                                 </Button>
@@ -137,7 +172,7 @@ export default function SenderPage() {
 
                 {session && (
                     <div className={styles.step}>
-                        <h2>{processingFile ? 'Sending Files...' : 'Ready to Receive'}</h2>
+                        <h2>{processingFile ? 'Sending Items...' : 'Ready to Receive'}</h2>
 
                         {!processingFile && <p className={styles.instruction}>Scan this on the other device</p>}
 
@@ -148,9 +183,13 @@ export default function SenderPage() {
 
                         {processingFile ? (
                             <div className={styles.processingBox}>
-                                <p>Sending file {processingFile.index} of {session.files.length}</p>
-                                <h3>{processingFile.name}</h3>
-                                <div className={styles.spinner}><Loader2 className="animate-spin" color="#FF7A00" /></div>
+                                <div style={{ marginBottom: '1rem', width: '100%' }}>
+                                    <ProgressBar 
+                                        progress={(processingFile.index / session.files.length) * 100} 
+                                        label={`Sent ${processingFile.index} of ${session.files.length}`} 
+                                    />
+                                </div>
+                                <h3 style={{ fontSize: '0.95rem', margin: 0, wordBreak: 'break-all' }}>{processingFile.name}</h3>
                             </div>
                         ) : (
                             <div className={styles.infoBox}>
