@@ -67,13 +67,13 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         setCurrentFileName(data.name);
                         setProgress((data.index / data.total) * 100);
                         
-                        if (data.index === data.total) {
-                            setTimeout(() => {
+                        setTimeout(() => {
+                            connection.send({ type: 'ACK' });
+                            if (data.index === data.total) {
                                 setDownloading(false);
-                                conn.send({ type: 'COMPLETE' });
                                 setTimeout(() => window.location.href = '/', 2500);
-                            }, 1000);
-                        }
+                            }
+                        }, 500);
                     }
                 });
 

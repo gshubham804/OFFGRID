@@ -73,31 +73,38 @@ export default function SenderPage() {
                     });
                 });
 
-                conn.on('data', (data: any) => {
-                    if (data.type === 'ACCEPT') {
-                        // Send each file natively as Blobs
-                        for (let i = 0; i < files.length; i++) {
-                            const file = files[i];
-                            const displayName = file.webkitRelativePath || file.name;
-                            setProcessingFile({ index: i + 1, name: displayName });
-                            
-                            conn.send({
-                                type: 'FILE',
-                                file: file,
-                                name: displayName,
-                                index: i + 1,
-                                total: files.length
-                            });
-                        }
+                let currentIdx = 0;
 
-                        setTimeout(() => {
-                            setProcessingFile(null); // Clear active processing UI locally
-                        }, 500);
-                    } else if (data.type === 'COMPLETE') {
+                const sendNextFile = () => {
+                    if (currentIdx >= files.length) {
+                        setProcessingFile(null);
                         setTransferComplete(true);
                         setTimeout(() => {
                             window.location.href = '/';
                         }, 2500);
+                        return;
+                    }
+                    
+                    const file = files[currentIdx];
+                    const displayName = file.webkitRelativePath || file.name;
+                    setProcessingFile({ index: currentIdx + 1, name: displayName });
+                    
+                    conn.send({
+                        type: 'FILE',
+                        file: file,
+                        name: displayName,
+                        index: currentIdx + 1,
+                        total: files.length
+                    });
+                };
+
+                conn.on('data', (data: any) => {
+                    if (data.type === 'ACCEPT') {
+                        currentIdx = 0;
+                        sendNextFile();
+                    } else if (data.type === 'ACK') {
+                        currentIdx++;
+                        sendNextFile();
                     }
                 });
             });
