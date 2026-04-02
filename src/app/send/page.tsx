@@ -133,12 +133,10 @@ export default function SenderPage() {
                             <Card className={styles.uploadCard} onClick={() => folderInputRef.current?.click()}>
                                 <FolderUp size={28} color="var(--primary-orange)" />
                                 <h3>Add Folder</h3>
-                                {/* @ts-ignore */}
                                 <input
                                     type="file"
                                     multiple
-                                    webkitdirectory="true"
-                                    directory="true"
+                                    {...{ webkitdirectory: "true", directory: "true" }}
                                     ref={folderInputRef}
                                     onChange={handleFileChange}
                                     hidden
