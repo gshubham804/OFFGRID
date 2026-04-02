@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
@@ -12,8 +12,11 @@ import { formatBytes } from '@/utils/format';
 
 interface Session {
     id: string;
-    hostIp: string;
     files: any[];
+}
+
+function generateShortId(): string {
+    return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
 export default function SenderPage() {
@@ -24,31 +27,6 @@ export default function SenderPage() {
     const [processingFile, setProcessingFile] = useState<{ index: number, name: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Polling for progress
-    useEffect(() => {
-        if (!session) return;
-
-        let interval = setInterval(async () => {
-            try {
-                const res = await fetch(`/api/session/${session.id}/status`);
-                if (res.ok) {
-                    const status = await res.json();
-                    if (status.transferStarted) {
-                        const fileIdx = session.files.findIndex((f: any) => f.id === status.currentFileId);
-                        if (fileIdx !== -1) {
-                            const currentFile = session.files[fileIdx];
-                            setProcessingFile({ index: fileIdx + 1, name: currentFile.name });
-                        }
-                    }
-                }
-            } catch (e) {
-                // ignore polling errors
-            }
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, [session]);
-
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             setFiles(Array.from(e.target.files));
@@ -57,32 +35,63 @@ export default function SenderPage() {
 
     const handleStart = async () => {
         if (files.length === 0) return;
-
         setLoading(true);
-        try {
-            const formData = new FormData();
-            files.forEach(file => formData.append('files', file));
 
-            const res = await fetch('/api/session/create', {
-                method: 'POST',
-                body: formData,
+        try {
+            const PeerModule = (await import('peerjs')).default;
+            const newId = generateShortId();
+            const peer = new PeerModule(newId);
+
+            peer.on('open', async (id) => {
+                setSession({ id, files });
+                setLoading(false);
+                
+                const url = `${window.location.origin}/receive/${id}`;
+                const qrDataUrl = await QRCode.toDataURL(url, { margin: 2, scale: 10, color: { dark: '#FF7A00', light: '#FFFFFF' } });
+                setQrUrl(qrDataUrl);
             });
 
-            if (!res.ok) throw new Error('Failed to create session');
+            peer.on('connection', (conn) => {
+                conn.on('open', () => {
+                    // Send metadata first
+                    conn.send({
+                        type: 'META',
+                        files: files.map(f => ({ name: f.name, size: f.size, type: f.type }))
+                    });
+                });
 
-            const data = await res.json();
-            setSession(data);
+                conn.on('data', (data: any) => {
+                    if (data.type === 'ACCEPT') {
+                        // Send each file natively as Blobs
+                        for (let i = 0; i < files.length; i++) {
+                            const file = files[i];
+                            setProcessingFile({ index: i + 1, name: file.name });
+                            
+                            conn.send({
+                                type: 'FILE',
+                                file: file,
+                                name: file.name,
+                                index: i + 1,
+                                total: files.length
+                            });
+                        }
 
-            // Generate QR
-            // URL: http://<HOST_IP>:3000/receive/<SESSION_ID>
-            const url = `http://${data.hostIp}:3000/receive/${data.id}`;
-            const qrDataUrl = await QRCode.toDataURL(url, { margin: 2, scale: 10, color: { dark: '#FF7A00', light: '#FFFFFF' } });
-            setQrUrl(qrDataUrl);
+                        setTimeout(() => {
+                            setProcessingFile(null); // Clear processing once queued
+                        }, 500);
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                alert('Peer connection error');
+                setLoading(false);
+            });
 
         } catch (err) {
             console.error(err);
             alert('Error creating session');
-        } finally {
             setLoading(false);
         }
     };
@@ -91,7 +100,6 @@ export default function SenderPage() {
         <div className={styles.container}>
             <Header />
             <main className={styles.main}>
-                {/* Step 1: File Selection */}
                 {!session && (
                     <div className={styles.step}>
                         <div className={styles.headerRow}>
@@ -105,7 +113,7 @@ export default function SenderPage() {
                                     <FileUp size={32} color="var(--primary-orange)" />
                                 </div>
                                 <h3>Select files to send</h3>
-                                <p>Works on Local Wi-Fi or Hotspot</p>
+                                <p>Works on any device with a browser</p>
                             </div>
                             <input
                                 type="file"
@@ -127,7 +135,6 @@ export default function SenderPage() {
                     </div>
                 )}
 
-                {/* Step 2: Session Active (QR) */}
                 {session && (
                     <div className={styles.step}>
                         <h2>{processingFile ? 'Sending Files...' : 'Ready to Receive'}</h2>
@@ -148,7 +155,7 @@ export default function SenderPage() {
                         ) : (
                             <div className={styles.infoBox}>
                                 <p>Ensure both devices are on the same Wi-Fi.</p>
-                                <p className={styles.url}>http://{session.hostIp}:3000/receive/{session.id}</p>
+                                <p className={styles.url}>Or visit on any device</p>
                             </div>
                         )}
 

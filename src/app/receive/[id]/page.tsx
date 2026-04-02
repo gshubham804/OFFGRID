@@ -28,92 +28,60 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     const [currentFileIndex, setCurrentFileIndex] = useState(0);
     const [currentFileName, setCurrentFileName] = useState('');
     const [progress, setProgress] = useState(0);
-    const [speed, setSpeed] = useState('');
-    const [eta, setEta] = useState('');
+    const [conn, setConn] = useState<any>(null);
 
     useEffect(() => {
-        fetch(`/api/session/${id}`)
-            .then(res => {
-                if (!res.ok) throw new Error('Session not found or expired');
-                return res.json();
-            })
-            .then(setSession)
-            .catch(err => setError(err.message));
+        import('peerjs').then(({ default: Peer }) => {
+            const peer = new Peer();
+            
+            peer.on('error', (err) => {
+                setError('PeerJS Error: ' + err.message);
+            });
+
+            peer.on('open', () => {
+                const connection = peer.connect(id);
+                
+                connection.on('open', () => {
+                    setConn(connection);
+                });
+
+                connection.on('data', (data: any) => {
+                    if (data.type === 'META') {
+                        setSession({
+                            id,
+                            files: data.files.map((f: any, i: number) => ({ ...f, id: i.toString() }))
+                        });
+                    } else if (data.type === 'FILE') {
+                        // Create object URL and trigger download
+                        const blob = new Blob([data.file], { type: data.file.type });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = data.name;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        
+                        setCurrentFileIndex(data.index);
+                        setCurrentFileName(data.name);
+                        setProgress((data.index / data.total) * 100);
+                        
+                        if (data.index === data.total) {
+                            setTimeout(() => setDownloading(false), 1000);
+                        }
+                    }
+                });
+
+                connection.on('error', () => setError('Connection failed'));
+            });
+        });
     }, [id]);
 
-    const downloadFile = (file: FileMeta): Promise<void> => {
-        return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', `/api/file/${session!.id}/${file.id}`);
-            xhr.responseType = 'blob';
-
-            const startTime = Date.now();
-
-            xhr.onprogress = (event) => {
-                if (event.lengthComputable) {
-                    // Calculate Speed (Bytes/sec)
-                    const now = Date.now();
-                    const elapsed = (now - startTime) / 1000; // seconds
-                    const totalSpeed = event.loaded / elapsed; // bytes per second average
-
-                    setSpeed(`${formatBytes(totalSpeed)}/s`);
-
-                    // Calculate ETA
-                    const remaining = event.total - event.loaded;
-                    const secondsLeft = remaining / totalSpeed;
-                    setEta(secondsLeft < 60 ? `${Math.round(secondsLeft)}s` : `${Math.round(secondsLeft / 60)}m`);
-
-                    // Update overall progress (simple version: per file progress mapped to total)
-                    // Ideally we'd track total bytes of all files, but one-by-one is safer for memory.
-                }
-            };
-
-            xhr.onload = () => {
-                if (xhr.status === 200) {
-                    const blob = xhr.response;
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = url;
-                    a.download = file.name;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    resolve();
-                } else {
-                    reject(new Error('Download failed'));
-                }
-            };
-
-            xhr.onerror = () => reject(new Error('Network error'));
-            xhr.send();
-        });
-    };
-
-    const handleDownload = async () => {
-        if (!session) return;
+    const handleDownload = () => {
+        if (!conn || !session) return;
         setDownloading(true);
-
-        const totalFiles = session.files.length;
-        let completed = 0;
-
-        for (let i = 0; i < totalFiles; i++) {
-            const file = session.files[i];
-            setCurrentFileIndex(i + 1);
-            setCurrentFileName(file.name);
-
-            try {
-                await downloadFile(file);
-                completed++;
-                setProgress((completed / totalFiles) * 100);
-            } catch (e) {
-                console.error(e);
-            }
-        }
-        setDownloading(false);
-        setSpeed('');
-        setEta('');
-        setCurrentFileName('');
+        conn.send({ type: 'ACCEPT' }); // Tell sender to start streaming files
     };
 
     if (error) {
@@ -137,13 +105,13 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
             <div className={styles.container}>
                 <Header />
                 <main className={styles.main}>
-                    <p className={styles.loading}>Connecting...</p>
+                    <p className={styles.loading}>Connecting to {id}...</p>
                 </main>
             </div>
         );
     }
 
-    const isComplete = progress === 100;
+    const isComplete = progress >= 100;
 
     return (
         <div className={styles.container}>
@@ -162,7 +130,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 </div>
 
                 <Card className={styles.fileList}>
-                    {session.files.map(file => (
+                    {session.files.map((file) => (
                         <div key={file.id} className={styles.fileItem} style={{ opacity: downloading && file.name !== currentFileName && !isComplete ? 0.5 : 1 }}>
                             <div className={styles.fileIcon}>
                                 <FileIcon size={20} />
@@ -182,12 +150,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                     {downloading || isComplete ? (
                         <div className={styles.progressContainer}>
                             <ProgressBar progress={progress} label={isComplete ? "Complete" : `Total Progress ${Math.round(progress)}%`} />
-                            {!isComplete && (
-                                <div className={styles.meta}>
-                                    <span>{speed}</span>
-                                    <span>ETA: {eta}</span>
-                                </div>
-                            )}
                         </div>
                     ) : (
                         <Button fullWidth onClick={handleDownload}>
