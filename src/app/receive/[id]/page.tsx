@@ -149,7 +149,10 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                 <div className={styles.footer}>
                     {downloading || isComplete ? (
                         <div className={styles.progressContainer}>
-                            <ProgressBar progress={progress} label={isComplete ? "Complete" : `Total Progress ${Math.round(progress)}%`} />
+                            <ProgressBar 
+                                progress={progress} 
+                                label={isComplete ? "Complete" : `Received ${currentFileIndex} of ${session.files.length} items (${Math.round(progress)}%)`} 
+                            />
                         </div>
                     ) : (
                         <Button fullWidth onClick={handleDownload}>
