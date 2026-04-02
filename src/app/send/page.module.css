@@ -1,4 +1,4 @@
-﻿.container {
+.container {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
@@ -163,4 +163,61 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+.uploadRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.uploadRow .uploadCard {
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 120px;
+    margin-bottom: 0;
+}
+
+.selectedFilesList {
+    max-height: 250px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.selectedFileItem {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    background: rgba(0,0,0,0.03);
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.selectedFileName {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 85%;
+    color: var(--foreground);
+    direction: ltr;
+}
+
+.removeBtn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.removeBtn:hover {
+    color: #ef4444;
 }
