@@ -4,7 +4,7 @@ import { useState, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Header } from '@/components/layout/Header';
-import { FileUp, FolderUp, Loader2, ArrowLeft, X } from 'lucide-react';
+import { FileUp, FolderUp, Loader2, ArrowLeft, X, CheckCircle } from 'lucide-react';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import QRCode from 'qrcode';
 import Link from 'next/link';
@@ -26,6 +26,8 @@ export default function SenderPage() {
     const [loading, setLoading] = useState(false);
     const [qrUrl, setQrUrl] = useState('');
     const [processingFile, setProcessingFile] = useState<{ index: number, name: string } | null>(null);
+    const [receiverConnected, setReceiverConnected] = useState(false);
+    const [transferComplete, setTransferComplete] = useState(false);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const folderInputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +63,8 @@ export default function SenderPage() {
             });
 
             peer.on('connection', (conn) => {
+                setReceiverConnected(true);
+
                 conn.on('open', () => {
                     // Send metadata first
                     conn.send({
@@ -87,8 +91,13 @@ export default function SenderPage() {
                         }
 
                         setTimeout(() => {
-                            setProcessingFile(null); // Clear processing once queued
+                            setProcessingFile(null); // Clear active processing UI locally
                         }, 500);
+                    } else if (data.type === 'COMPLETE') {
+                        setTransferComplete(true);
+                        setTimeout(() => {
+                            window.location.href = '/';
+                        }, 2500);
                     }
                 });
             });
@@ -170,35 +179,51 @@ export default function SenderPage() {
 
                 {session && (
                     <div className={styles.step}>
-                        <h2>{processingFile ? 'Sending Items...' : 'Ready to Receive'}</h2>
-
-                        {!processingFile && <p className={styles.instruction}>Scan this on the other device</p>}
-
-                        <div className={styles.qrContainer}>
-                            {qrUrl && <img src={qrUrl} alt="QR Code" className={styles.qrCode} />}
-                            <div className={styles.sessionId}>{session.id}</div>
-                        </div>
-
-                        {processingFile ? (
-                            <div className={styles.processingBox}>
-                                <div style={{ marginBottom: '1rem', width: '100%' }}>
-                                    <ProgressBar 
-                                        progress={(processingFile.index / session.files.length) * 100} 
-                                        label={`Sent ${processingFile.index} of ${session.files.length}`} 
-                                    />
+                        {transferComplete ? (
+                                <div className={styles.successBox} style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                                    <CheckCircle size={64} color="var(--success)" style={{ margin: '0 auto 1.5rem' }} />
+                                    <h2>Transfer Complete!</h2>
+                                    <p style={{ color: 'var(--text-muted)' }}>Returning to home screen...</p>
                                 </div>
-                                <h3 style={{ fontSize: '0.95rem', margin: 0, wordBreak: 'break-all' }}>{processingFile.name}</h3>
-                            </div>
                         ) : (
-                            <div className={styles.infoBox}>
-                                <p>Ensure both devices are on the same Wi-Fi.</p>
-                                <p className={styles.url}>Or visit on any device</p>
-                            </div>
-                        )}
+                           <>
+                               <h2>{processingFile ? 'Sending Items...' : (receiverConnected ? 'Device Connected!' : 'Ready to Receive')}</h2>
+        
+                               {!processingFile && (
+                                   <p className={styles.instruction}>
+                                       {receiverConnected ? 'Waiting for receiver to accept the files...' : 'Scan this on the other device'}
+                                   </p>
+                               )}
 
-                        <Button variant="secondary" fullWidth onClick={() => window.location.reload()}>
-                            Stop Transfer
-                        </Button>
+                               {!receiverConnected && (
+                                   <div className={styles.qrContainer}>
+                                       {qrUrl && <img src={qrUrl} alt="QR Code" className={styles.qrCode} />}
+                                       <div className={styles.sessionId}>{session.id}</div>
+                                   </div>
+                               )}
+        
+                               {processingFile ? (
+                                   <div className={styles.processingBox}>
+                                       <div style={{ marginBottom: '1rem', width: '100%' }}>
+                                           <ProgressBar 
+                                               progress={(processingFile.index / session.files.length) * 100} 
+                                               label={`Sent ${processingFile.index} of ${session.files.length}`} 
+                                           />
+                                       </div>
+                                       <h3 style={{ fontSize: '0.95rem', margin: 0, wordBreak: 'break-all' }}>{processingFile.name}</h3>
+                                   </div>
+                               ) : (
+                                   <div className={styles.infoBox}>
+                                       <p>Ensure both devices are on the same Wi-Fi.</p>
+                                       <p className={styles.url}>Or visit on any device</p>
+                                   </div>
+                               )}
+        
+                               <Button variant="secondary" fullWidth onClick={() => window.location.reload()}>
+                                   Stop Transfer
+                               </Button>
+                           </>
+                        )}
                     </div>
                 )}
             </main>

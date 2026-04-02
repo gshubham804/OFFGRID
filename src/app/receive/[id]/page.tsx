@@ -68,7 +68,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
                         setProgress((data.index / data.total) * 100);
                         
                         if (data.index === data.total) {
-                            setTimeout(() => setDownloading(false), 1000);
+                            setTimeout(() => {
+                                setDownloading(false);
+                                conn.send({ type: 'COMPLETE' });
+                                setTimeout(() => window.location.href = '/', 2500);
+                            }, 1000);
                         }
                     }
                 });
